@@ -1,0 +1,41 @@
+{
+    "consumer_key": "pYpJ1wQZbVRBtLiAaeieTvk74woa",
+    "secret_key": "Yu3ukOnMwk9o_SCPGkVfU3sImI4a",
+    "username": "client65421",
+    "password": "97RiM8QB",
+    "mobile_number": "+919545689031",
+    "login_password": "Sujit@#$123",
+    "ucc": "ZESBU",
+    "webhook_passphrase": "MY_SECRET_PASS",
+    
+    "webhook_default_qty": 1,
+    "webhook_stop_loss_points": 0,     
+    "webhook_target_points": 0,
+    "webhook_stop_loss_percent": 0.5, 
+    "webhook_target_percent": 1.0,     
+
+    
+    "quantity_map": {
+       "BDL-EQ": 5,
+        "BLS-EQ": 19,
+        "BLUESTARCO-EQ": 5,
+        "COLPAL-EQ": 5,
+        "DEEPAKFERT-EQ": 6,
+        "DELHIVERY-EQ": 16,
+        "ENRIN-EQ": 2,
+        "GRANULES-EQ": 12,
+        "HUDCO-EQ": 32,
+        "IDFCFIRSTB-EQ": 82,
+        "INDUSTOWER-EQ": 15,
+        "MRPL-EQ": 49,
+        "MSUMI-EQ": 160,
+        "NBCC-EQ": 60,
+        "NYKAA-EQ": 24,
+        "PFC-EQ": 20,
+        "PIRAMALFIN-EQ": 5,
+        "POLYCAB-EQ": 1,
+        "TATATECH-EQ": 15
+        
+    }
+
+}

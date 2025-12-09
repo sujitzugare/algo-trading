@@ -1,0 +1,78 @@
+This is a great question. Having to run two separate commands in two terminals is inconvenient.
+
+The easiest solution is to create a single **Windows Batch Script**. This is a simple text file that will run *both* commands for you, each in its own new window.
+
+Here is your "cheat sheet" for all operations.
+
+### 1\. Manual Commands (What you are doing now)
+
+This is just for your reference.
+4   +980754
+  * **To START the Bot:**
+      * In **Terminal 1**, run:
+        ```cmd
+        C:/Users/sujit/AppData/Local/Programs/Python/Python312/python.exe "c:/Users/sujit/Downloads/sdfsd/New folder (2)/gme/qunts/fff/new/spec/trading_bot.py" webhook
+        ```
+  * **To START the Tunnel:**
+      * In **Terminal 2**, run:
+        ```cmd
+        cloudflared tunnel --url http://localhost:5000
+        ```
+  * **To STOP everything:**
+      * You must close **both** terminal windows.
+
+-----
+
+### 2\. The 1-Click Solution (The Batch Script)
+
+Follow these steps to create a single file that does all the work.
+
+1.  Go to your trading bot folder (the one containing `trading_bot.py`).
+2.  Right-click, select **New** -\> **Text Document**. 3.  Name this new file **`start_bot.bat`** (make sure you change the file extension from `.txt` to `.bat`). Windows may warn you about changing the extension; click "Yes".
+4.  Right-click on your new `start_bot.bat` file and click **"Edit"**.
+5.  Copy and paste the following code into the file:
+
+<!-- end list -->
+
+```bat
+@echo off
+title Trading Bot Manager
+
+echo =======================================================
+echo  Starting Python Bot and Cloudflare Tunnel...
+echo =======================================================
+
+echo.
+echo [1/2] Starting Python Trading Bot in a new window...
+start "Python Bot" C:/Users/sujit/AppData/Local/Programs/Python/Python312/python.exe "c:/Users/sujit/Downloads/sdfsd/New folder (2)/gme/qunts/fff/new/spec/trading_bot.py" webhook
+
+echo [2/2] Starting Cloudflare Tunnel in a new window...
+start "Cloudflare Tunnel" cloudflared tunnel --url http://localhost:5000
+
+echo.
+echo =======================================================
+echo  DONE! 
+echo  Two new windows have been opened.
+echo  You can close this window now.
+echo =======================================================
+pause
+```
+
+6.  **Save** and close the file.
+
+-----
+
+### How to Use Your New Script
+
+Now, your entire process is just two simple steps:
+
+  * **To START everything:**
+
+      * Go to your folder and **double-click the `start_bot.bat` file**.
+      * It will open two new, separate terminal windows (one for the bot, one for the tunnel) and run them automatically.
+
+  * **To STOP everything:**
+
+      * Simply **close the two new terminal windows** that the script opened.\
+
+      {{strategy.order.alert_message}} tradingview massage box text python "c:/Users/sujit/Downloads/sdfsd/New folder (2)/gme/qunts/fff/new/spec/tracding.py" webhook   
