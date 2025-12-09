@@ -1,0 +1,73 @@
+//@version=5
+strategy("Indian Market Pivot Breakout [Nifty Special]", overlay=true, initial_capital=100000, default_qty_type=strategy.fixed, default_qty_value=50, currency=currency.INR)
+
+// --- 1. SETTINGS & INPUTS ---
+// Trend Filter
+emaLength = input.int(50, title="EMA Trend Filter Length", group="Strategy Settings")
+
+// Bot Integration
+passphrase = input.string("YOUR_PASSPHRASE", title="Webhook Passphrase", group="Bot Settings", tooltip="Must match config.json")
+
+// Target & Stop Loss (%)
+target_percent = input.float(1.5, title="Target Profit (%)", step=0.1, group="Risk Management")
+stop_loss_percent = input.float(0.75, title="Stop Loss (%)", step=0.1, group="Risk Management")
+
+// Date Range (Backtest Filter)
+startYear = input.int(2023, "Start Year", group="Backtest Window")
+startMonth = input.int(1, "Start Month", group="Backtest Window")
+startDay = input.int(1, "Start Day", group="Backtest Window")
+
+// --- 2. PIVOT POINT CALCULATION (DAILY) ---
+d_high = request.security(syminfo.tickerid, "D", high[1])
+d_low  = request.security(syminfo.tickerid, "D", low[1])
+d_close = request.security(syminfo.tickerid, "D", close[1])
+
+// Pivot Formulas
+p = (d_high + d_low + d_close) / 3
+r1 = (2 * p) - d_low
+s1 = (2 * p) - d_high
+
+// --- 3. INDICATOR CALCULATIONS ---
+emaValue = ta.ema(close, emaLength)
+
+// --- 4. TRADING LOGIC ---
+// Define Indian Market Session (09:15 to 15:00 for new entries)
+sessionTime = time(timeframe.period, "0915-1500:1234567")
+inSession = not na(sessionTime)
+
+// Buy Condition: Crossover R1 + Price > EMA + Inside Session
+longCondition = ta.crossover(close, r1) and close > emaValue and inSession
+
+// Sell Condition: Crossunder S1 + Price < EMA + Inside Session
+shortCondition = ta.crossunder(close, s1) and close < emaValue and inSession
+
+// --- 5. EXECUTION & ALERT GENERATION ---
+// Check Date Range
+inDateRange = true // Simplified for current usage
+
+// Construct the JSON payloads dynamically
+// We use 'close' as the price because that is the price at the moment the alert triggers
+qty = 50 // Matches your default_qty_value
+long_msg = '{"action": "buy", "ticker": "' + syminfo.tickerid + '", "price": ' + str.tostring(close) + ', "quantity": "' + str.tostring(qty) + '", "passphrase": "' + passphrase + '"}'
+short_msg = '{"action": "sell", "ticker": "' + syminfo.tickerid + '", "price": ' + str.tostring(close) + ', "quantity": "' + str.tostring(qty) + '", "passphrase": "' + passphrase + '"}'
+
+if (inDateRange)
+    // Entry Logic with Alert Message attached
+    if (longCondition)
+        strategy.entry("Long Breakout", strategy.long, comment="Buy @ R1", alert_message=long_msg)
+        
+    if (shortCondition)
+        strategy.entry("Short Breakout", strategy.short, comment="Sell @ S1", alert_message=short_msg)
+
+    // Exit Logic (Visual only for Backtest - Bot handles Bracket Order exits automatically)
+    strategy.exit("Exit Long", "Long Breakout", profit=close * (target_percent/100) / syminfo.mintick, loss=close * (stop_loss_percent/100) / syminfo.mintick)
+    strategy.exit("Exit Short", "Short Breakout", profit=close * (target_percent/100) / syminfo.mintick, loss=close * (stop_loss_percent/100) / syminfo.mintick)
+
+// --- 6. PLOTTING ---
+plot(p, color=color.gray, title="Pivot", style=plot.style_circles)
+plot(r1, color=color.green, title="Resistance 1 (R1)", linewidth=2)
+plot(s1, color=color.red, title="Support 1 (S1)", linewidth=2)
+plot(emaValue, color=color.blue, title="50 EMA Trend")
+
+// Background color to show active trading session
+bgcolor(inSession ? color.new(color.blue, 95) : na)
