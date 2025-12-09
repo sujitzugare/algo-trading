@@ -1,12 +1,12 @@
 {
-    "consumer_key": "pYpJ1wQZbVRBtLiAaeieTvk74woa",
-    "secret_key": "Yu3ukOnMwk9o_SCPGkVfU3sImI4a",
-    "username": "client65421",
-    "password": "97RiM8QB",
-    "mobile_number": "+919545689031",
-    "login_password": "Sujit@#$123",
+    "consumer_key": "",
+    "secret_key": "",
+    "username": "",
+    "password": "",
+    "mobile_number": "+91",
+    "login_password": "",
     "ucc": "ZESBU",
-    "webhook_passphrase": "MY_SECRET_PASS",
+    "webhook_passphrase": "",
     
     "webhook_default_qty": 1,
     "webhook_stop_loss_points": 0,     
@@ -37,5 +37,6 @@
         "TATATECH-EQ": 15
         
     }
+
 
 }
