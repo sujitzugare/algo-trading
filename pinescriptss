@@ -1,0 +1,157 @@
+//@version=5
+// Title: AlphaVantage Titan v3.1 [Syntax Fixed]
+// Author: AI Assistant
+// Strategy: Asymmetric Trend Following (Turtle + Vortex)
+// Updates: Fixed JSON Line Break Error, Locked Stop Loss, Anti-Repainting
+
+strategy("AlphaVantage Titan v3.1 [Syntax Fixed]", overlay=true, initial_capital=100000, default_qty_type=strategy.cash, default_qty_value=100000, currency=currency.INR, pyramiding=1, calc_on_every_tick=false, process_orders_on_close=true)
+
+// =============================================================================
+// 0. WEBHOOK & JSON ENGINE
+// =============================================================================
+grp_web      = "Webhook Settings"
+webhook_pass = input.string("MY_SECRET_PASS", "Webhook Passphrase", group=grp_web)
+
+// JSON Generator (Fixed to single line to prevent syntax errors)
+get_json(action_type, q, limit_price) =>
+    '{"passphrase": "' + webhook_pass + '", "ticker": "' + syminfo.ticker + '", "action": "' + action_type + '", "quantity": ' + str.tostring(q) + ', "price": ' + str.tostring(limit_price) + '}'
+
+// =============================================================================
+// 1. INPUTS
+// =============================================================================
+// Strategy Mode
+strat_mode  = input.string("Turtle Breakout", "Signal Logic", options=["Composite", "Turtle Breakout", "Vortex Trend"], group="Strategy Logic")
+
+// Trend Filters (MTF)
+use_mtf_long = input.bool(true, "Long: Filter with Weekly Trend?", group="Trend Filters")
+use_mtf_short = input.bool(true, "Short: Filter with Daily Trend?", group="Trend Filters")
+// Lookback Periods
+donch_len_long = input.int(55, "Long Breakout (Days)", minval=20, group="Lookback Settings")
+donch_len_short = input.int(20, "Short Breakout (Days)", minval=5, group="Lookback Settings")
+donch_exit  = input.int(20, "Trailing Stop Channel", minval=10, group="Lookback Settings")
+
+// Risk Management
+risk_per_trade = input.float(1.0, "Risk % Per Trade", step=0.1, group="Risk Management")
+atr_len     = input.int(14, "ATR Length", group="Risk Management")
+sl_mult     = input.float(2.0, "Stop Loss (ATR Multiplier)", step=0.1, group="Risk Management")
+
+// Date & Time
+use_date    = input.bool(true, "Backtest Date Filter", group="Time Settings")
+start_yr    = input.int(2023, "Start Year", group="Time Settings")
+use_eod     = input.bool(false, "Force EOD Exit?", group="Time Settings")
+exit_hr     = input.int(15, "EOD Hour", group="Time Settings")
+exit_min    = input.int(15, "EOD Minute", group="Time Settings")
+
+// =============================================================================
+// 2. CORE CALCULATIONS
+// =============================================================================
+
+// --- A. Non-Repainting Trend Filters ---
+// We use barmerge.lookahead_off to ensure we only see confirmed closed data from higher timeframes
+mtf_ema_long = request.security(syminfo.tickerid, "W", ta.ema(close, 200), lookahead=barmerge.lookahead_off)
+// For short logic, we check if current close is below the Daily EMA
+ema_short_daily = request.security(syminfo.tickerid, "D", ta.ema(close, 50), lookahead=barmerge.lookahead_off)
+
+trend_ok_long = use_mtf_long ? (close > mtf_ema_long) : true
+trend_ok_short = use_mtf_short ? (close < ema_short_daily) : true
+
+// --- B. Breakout Channels ---
+donch_upper = ta.highest(high[1], donch_len_long) 
+donch_lower = ta.lowest(low[1], donch_len_short)
+exit_upper  = ta.highest(high[1], donch_exit) // Exit for Shorts
+exit_lower  = ta.lowest(low[1], donch_exit)   // Exit for Longs
+
+// --- C. Indicators (Vortex & RSI) ---
+[di_plus, di_minus, adx] = ta.dmi(14, 14)
+rsi_val = ta.rsi(close, 14)
+
+v_plus  = math.sum(math.abs(high - low[1]), 14) / math.sum(ta.tr, 14)
+v_minus = math.sum(math.abs(low - high[1]), 14) / math.sum(ta.tr, 14)
+
+// --- D. Logic Triggers ---
+// Filters
+filter_long  = (adx > 20) and (rsi_val > 50) and trend_ok_long
+filter_short = (adx > 20) and (rsi_val < 50) and trend_ok_short
+
+// Entry Signals
+turtle_buy   = ta.crossover(close, donch_upper) and filter_long
+turtle_sell  = ta.crossunder(close, donch_lower) and filter_short
+vortex_buy   = ta.crossover(v_plus, v_minus) and filter_long
+vortex_sell  = ta.crossunder(v_plus, v_minus) and filter_short
+
+// Combined Signal
+signal_buy   = (strat_mode == "Turtle Breakout" or strat_mode == "Composite") ? turtle_buy : vortex_buy
+signal_sell  = (strat_mode == "Turtle Breakout" or strat_mode == "Composite") ? turtle_sell : vortex_sell
+
+// =============================================================================
+// 3. RISK & POSITION MANAGEMENT (LOCKED SL)
+// =============================================================================
+
+// Calculate Dynamic Quantity based on Risk
+atr = ta.atr(atr_len)
+risk_amt = strategy.equity * (risk_per_trade / 100)
+sl_distance = atr * sl_mult
+safe_qty = sl_distance > 0 ? math.floor(risk_amt / sl_distance) : 1
+
+// Persistent Variables to LOCK Stop Loss prices
+var float long_sl_price = na
+var float short_sl_price = na
+
+// Detect New Trades to Lock SL
+is_new_long  = strategy.position_size > 0 and strategy.position_size[1] <= 0
+is_new_short = strategy.position_size < 0 and strategy.position_size[1] >= 0
+
+if is_new_long
+    long_sl_price := close - sl_distance // Lock SL at entry moment
+if is_new_short
+    short_sl_price := close + sl_distance // Lock SL at entry moment
+
+// =============================================================================
+// 4. EXECUTION LOOP
+// =============================================================================
+in_time = (not use_date or time >= timestamp(start_yr, 1, 1, 0, 0)) and (not use_eod or (hour < exit_hr) or (hour == exit_hr and minute < exit_min))
+
+// --- LONG ENTRY ---
+if in_time and signal_buy
+    strategy.entry("Long", strategy.long, qty=safe_qty, comment="Long Entry", alert_message=get_json("buy", safe_qty, close))
+
+// --- SHORT ENTRY ---
+if in_time and signal_sell
+    strategy.entry("Short", strategy.short, qty=safe_qty, comment="Short Entry", alert_message=get_json("sell", safe_qty, close))
+
+// --- EXITS ---
+// 1. Long Exits
+if strategy.position_size > 0
+    // Hard Stop Loss (Fixed Price)
+    if low <= long_sl_price
+        strategy.close("Long", comment="SL Hit", alert_message=get_json("close_long", safe_qty, long_sl_price))
+    // Trailing Profit Exit (Donchian)
+    else if ta.crossunder(close, exit_lower)
+        strategy.close("Long", comment="Trail Exit", alert_message=get_json("close_long", safe_qty, close))
+
+// 2. Short Exits
+if strategy.position_size < 0
+    // Hard Stop Loss (Fixed Price)
+    if high >= short_sl_price
+        strategy.close("Short", comment="SL Hit", alert_message=get_json("close_short", safe_qty, short_sl_price))
+    // Trailing Profit Exit (Donchian)
+    else if ta.crossover(close, exit_upper)
+        strategy.close("Short", comment="Trail Exit", alert_message=get_json("close_short", safe_qty, close))
+
+// 3. EOD Exit
+if use_eod and hour == exit_hr and minute >= exit_min
+    strategy.close_all(comment="EOD Force", alert_message=get_json("close_all", 0, close))
+
+// =============================================================================
+// 5. VISUALS
+// =============================================================================
+// Plot Channels
+plot(donch_upper, "Breakout High", color=color.new(color.green, 60))
+plot(donch_lower, "Breakout Low", color=color.new(color.red, 60))
+
+// Plot Locked Stop Loss (Only when in position)
+plot(strategy.position_size > 0 ? long_sl_price : na, "Long SL", color=color.red, style=plot.style_cross, linewidth=2)
+plot(strategy.position_size < 0 ? short_sl_price : na, "Short SL", color=color.red, style=plot.style_cross, linewidth=2)
+
+// Plot Trend Filters
+plot(mtf_ema_long, "Weekly Trend", color=color.blue)
